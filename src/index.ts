@@ -1,18 +1,22 @@
 import {
-    Widget
-} from '@phosphor/widgets';
+    JupyterLab, JupyterLabPlugin, ILayoutRestorer
+} from '@jupyterlab/application';
+
+import {
+    ICommandPalette, InstanceTracker
+} from '@jupyterlab/apputils';
+
+import {
+    JSONExt
+} from '@phosphor/coreutils';
 
 import {
     Message
 } from '@phosphor/messaging';
 
 import {
-  JupyterLab, JupyterLabPlugin
-} from '@jupyterlab/application';
-
-import {
-    ICommandPalette
-} from '@jupyterlab/apputils';
+    Widget
+} from '@phosphor/widgets';
 
 import '../style/index.css';
 
@@ -51,32 +55,46 @@ class XkcdWidget extends Widget {
     }
 }
 
-function activate(app: JupyterLab, palette: ICommandPalette) {
+function activate(app: JupyterLab, palette: ICommandPalette, restorer: ILayoutRestorer) {
     console.log('JupyterLab extension xkcd is activated!');
 
     // Create a single widget
-    let widget: XkcdWidget = new XkcdWidget();
+    let widget: XkcdWidget;
 
     // Add an application command
     const command: string = 'xkcd:open';
     app.commands.addCommand(command, {
         label: 'Random xkcd comic',
         execute: () => {
+            if (!widget) {
+                // JIT create a new widget
+                widget = new XkcdWidget();
+                widget.update();
+            }
+            if (!tracker.has(widget)) {
+                tracker.add(widget);
+            }
             if (!widget.isAttached) {
                 // Attach the widget to the main work area if it's not there
                 app.shell.addToMainArea(widget);
+            } else {
+                widget.update();
             }
-
-            // Refresh the comic in the widget
-            widget.update();
 
             // Activate the widget
             app.shell.activateById(widget.id);
         }
     });
 
-    // Add the command to the palette
-    palette.addItem({command, category: 'Tutorial'});
+    palette.addItem({ command, category: 'Tutorial'});
+
+    // Track and restore the sidget state
+    let tracker = new InstanceTracker<Widget>({ namespace: 'xkcd'});
+    restorer.restore(tracker, {
+        command,
+        args: () => JSONExt.emptyObject,
+        name: () => 'xkcd'
+    });
 };
 
 /**
@@ -85,7 +103,7 @@ function activate(app: JupyterLab, palette: ICommandPalette) {
 const extension: JupyterLabPlugin<void> = {
   id: 'xkcd',
   autoStart: true,
-  requires: [ICommandPalette],
+  requires: [ICommandPalette, ILayoutRestorer],
   activate: activate
 };
 
